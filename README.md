@@ -4,8 +4,8 @@
 Microservices Scale-Up + Cloud Deploy (Railway)
 
 ## 2. สมาชิกกลุ่ม
-1. [นายสรภูริ์  ทองจันทร์] [67543206078-7]
-2. [นายเกียรติศักดิ์   อุปพรม] [67543206002-7]
+1. นายสรภูริ์  ทองจันทร์ 67543206078-7
+2. นายเกียรติศักดิ์   อุปพรม 67543206002-7
 
 ## 3. ภาพรวมระบบ
 ระบบเป็นการขยายสถาปัตยกรรม Microservices จาก 2 services เป็น 3 services (Auth, Task, User) โดยใช้รูปแบบ **Database-per-Service Pattern** (แยก Database อิสระต่อกัน) และทำการ Deploy ขึ้นบน **Railway Cloud**

@@ -50,38 +50,25 @@ CREATE INDEX IF NOT EXISTS idx_logs_created_at ON logs(created_at DESC);
 
 -- ═══════════════════════════════════════════════
 --  SEED USERS
---  ⚠️  Plain-text passwords (สำหรับอาจารย์/นักศึกษารู้)
---  bcrypt hash ด้านล่างคือ bcrypt(password, saltRounds=10)
--- ═══════════════════════════════════════════════
--- alice123      → $2a$10$YourHashHere...
--- bob456        → $2a$10$YourHashHere...
--- adminpass     → $2a$10$YourHashHere...
---
--- วิธีสร้าง hash ใหม่ (node REPL):
---   const b = require('bcryptjs');
---   console.log(b.hashSync('alice123', 10));
 -- ═══════════════════════════════════════════════
 
 INSERT INTO users (username, email, password_hash, role) VALUES
   (
     'alice',
     'alice@lab.local',
-    '$2b$10$v1hp7IVpkg1Xh6prgog.b.UgVr.NjIFynAzc9hK6BG8LHUJOfiZVW',
-    -- plain-text password: alice123
+    '$2b$10$/Ek56uEsATvkXMQ2V/GoeuiDJttt3N.A04Cg4FqUdyvCqx6cylGq2',
     'member'
   ),
   (
     'bob',
     'bob@lab.local',
-    '$2b$10$EhpzI5eXfaCjX9hLRaQ2FuIm5O5wyeYd/P8QDgLxpx9shtmu7RN.G',
-    -- plain-text password: bob456
+    '$2b$10$.KHIYXwzYuKwCWkio8BQUur6LX/prry1UMuQZtCqLMLBhJuFZwiuO',
     'member'
   ),
   (
     'admin',
     'admin@lab.local',
-    '$2b$10$BeAAl3jX71ldsv08XpQFfOPNOHD2i6QamLcd8wMRAsl6fDxBvYlGy',
-    -- plain-text password: adminpass
+    '$2b$10$cNXEdvVB85uXOaOdB8758O.OMRS22pS5BXWgTPTq62R/6m.MGbZgC',
     'admin'
   )
 ON CONFLICT DO NOTHING;

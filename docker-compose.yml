@@ -1,29 +1,163 @@
-# ตัวอย่าง services ใน docker-compose.yml (local test)
+# docker-compose.yml  –  Local Test (3 แยก Postgres + full services + HTTPS nginx)
+# ใช้คำสั่ง: docker-compose up --build
+# เข้าใช้งาน: https://localhost  (self-signed cert)
+
 services:
+
+  # ─────────────────────────────────────────────
+  # DATABASES  (3 isolated Postgres containers)
+  # ─────────────────────────────────────────────
   auth-db:
-    image: postgres:15
+    image: postgres:15-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: authdb
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: secret
+      POSTGRES_DB:       authdb
+      POSTGRES_USER:     ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret123}
     volumes:
-      - ./auth-service/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - auth-db-data:/var/lib/postgresql/data
+      - ./auth-service/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-admin} -d authdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
 
   task-db:
-    image: postgres:15
+    image: postgres:15-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: taskdb
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: secret
+      POSTGRES_DB:       taskdb
+      POSTGRES_USER:     ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret123}
     volumes:
-      - ./task-service/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - task-db-data:/var/lib/postgresql/data
+      - ./task-service/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-admin} -d taskdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
 
-  user-db:
-    image: postgres:15
+  log-db:
+    image: postgres:15-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: userdb
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: secret
+      POSTGRES_DB:       logdb
+      POSTGRES_USER:     ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret123}
     volumes:
-      - ./user-service/init.sql:/docker-entrypoint-initdb.d/init.sql
-  # ... auth-service, task-service, user-service
+      - log-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-admin} -d logdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+
+  # ─────────────────────────────────────────────
+  # APPLICATION SERVICES
+  # ─────────────────────────────────────────────
+  auth-service:
+    build: ./auth-service
+    restart: unless-stopped
+    environment:
+      DATABASE_URL:  postgres://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-secret123}@auth-db:5432/authdb
+      JWT_SECRET:    ${JWT_SECRET:-engce301-super-secret-change-in-production-abc123}
+      JWT_EXPIRES:   ${JWT_EXPIRES:-1h}
+      NODE_ENV:      development
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/api/auth/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - backend
+
+  task-service:
+    build: ./task-service
+    restart: unless-stopped
+    environment:
+      DATABASE_URL:  postgres://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-secret123}@task-db:5432/taskdb
+      JWT_SECRET:    ${JWT_SECRET:-engce301-super-secret-change-in-production-abc123}
+      LOG_SERVICE_URL: http://log-service:3003
+      NODE_ENV:      development
+    depends_on:
+      task-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3002/api/tasks/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - backend
+
+  log-service:
+    build: ./log-service
+    restart: unless-stopped
+    environment:
+      DATABASE_URL:  postgres://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-secret123}@log-db:5432/logdb
+      JWT_SECRET:    ${JWT_SECRET:-engce301-super-secret-change-in-production-abc123}
+      NODE_ENV:      development
+    depends_on:
+      log-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3003/api/logs/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - backend
+
+  # ─────────────────────────────────────────────
+  # FRONTEND  (static HTML served by nginx image)
+  # ─────────────────────────────────────────────
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    networks:
+      - backend
+
+  # ─────────────────────────────────────────────
+  # REVERSE PROXY  (HTTPS, port 443 → services)
+  # ─────────────────────────────────────────────
+  nginx:
+    build: ./nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - frontend
+      - auth-service
+      - task-service
+      - log-service
+    networks:
+      - backend
+
+# ─────────────────────────────────────────────
+# NAMED VOLUMES  (persistent DB storage)
+# ─────────────────────────────────────────────
+volumes:
+  auth-db-data:
+  task-db-data:
+  log-db-data:
+
+# ─────────────────────────────────────────────
+# NETWORK
+# ─────────────────────────────────────────────
+networks:
+  backend:
+    driver: bridge
